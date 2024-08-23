@@ -38,22 +38,17 @@ def connection_to_db():
     conn = engine.connect() 
     return conn
 
-
 # def load_model():
-#     torch.random.manual_seed(0)
+#     torch.random.manual_seed(0) 
 
-#     compute_dtype = torch.float16
-#     attn_implementation = 'sdpa'
 #     adapter = "PavanDeepak/Peft_XLAM_toolcalling_db"
 #     model_name = "Salesforce/xLAM-1b-fc-r"
 #     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
     
-#     # Load the model without GPU quantization
 #     model = AutoModelForCausalLM.from_pretrained(
 #         model_name,
-#         torch_dtype=compute_dtype,
-#         device_map={"": "cpu"}, 
-#         attn_implementation=attn_implementation,
+#         torch_dtype=torch.float32,
+#         attn_implementation='eager'  # Changed from 'sdpa' to 'eager' for CPU compatibility
 #     )
 #     model = PeftModel.from_pretrained(model, adapter)
 #     return model, tokenizer
@@ -61,42 +56,27 @@ def connection_to_db():
 def load_model():
     torch.random.manual_seed(0) 
 
+    compute_dtype = torch.float16
+    attn_implementation = 'sdpa'
+    quantization_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+        bnb_8bit_compute_dtype=compute_dtype,
+        bnb_8bit_use_double_quant=True,
+        bnb_8bit_quant_type="nf8",
+    )
     adapter = "PavanDeepak/Peft_XLAM_toolcalling_db"
     model_name = "Salesforce/xLAM-1b-fc-r"
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-    
+    print(f"Starting to load the model {model_name} into memory")
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float32,
-        attn_implementation='eager'  # Changed from 'sdpa' to 'eager' for CPU compatibility
+        quantization_config=quantization_config,
+        torch_dtype=compute_dtype,
+        device_map={"": 0},
+        attn_implementation=attn_implementation,
     )
     model = PeftModel.from_pretrained(model, adapter)
     return model, tokenizer
-
-# def load_model():
-#     torch.random.manual_seed(0) 
-
-#     compute_dtype = torch.float16
-#     attn_implementation = 'sdpa'
-#     quantization_config = BitsAndBytesConfig(
-#         load_in_8bit=True,
-#         bnb_8bit_compute_dtype=compute_dtype,
-#         bnb_8bit_use_double_quant=True,
-#         bnb_8bit_quant_type="nf8",
-#     )
-#     adapter = "PavanDeepak/Peft_XLAM_toolcalling_db"
-#     model_name = "Salesforce/xLAM-1b-fc-r"
-#     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-#     print(f"Starting to load the model {model_name} into memory")
-#     model = AutoModelForCausalLM.from_pretrained(
-#         model_name,
-#         quantization_config=quantization_config,
-#         torch_dtype=compute_dtype,
-#         device_map={"": 0},
-#         attn_implementation=attn_implementation,
-#     )
-#     model = PeftModel.from_pretrained(model, adapter)
-#     return model, tokenizer
 
 if st.session_state.model is None or st.session_state.tokenizer is None:
     st.session_state.model, st.session_state.tokenizer = load_model()
